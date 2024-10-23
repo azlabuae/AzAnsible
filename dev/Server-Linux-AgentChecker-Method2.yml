@@ -1,0 +1,32 @@
+# Copyright 2018, Trend Micro
+#
+# License as per [repo](master/LICENSE)
+#
+# *********************************************************************
+# * Activate the Deep Security Agent (For Linux only)
+# *********************************************************************
+---
+- name: Check if CyberEye Sever Agent file exist - Linux Only
+  hosts: unix
+
+  vars:
+    ansible_python_interpreter: "/usr/bin/python3"
+
+  tasks:
+# *********************************************************************
+# * Check if DSA installed properly
+# *********************************************************************
+    - name: Checking if CyberEye ServerSec Agent installed properly.
+      stat:
+        path: /opt/ds_agent/dsa_query
+      register: dsaAgent
+
+    - name: CyberEye ServerSec Agent installed
+      debug:
+        msg: "CyberEye ServerSec Agent already installed."
+      when: dsaAgent.stat.exists
+
+    - name: CyberEye ServerSec Agent not installed
+      debug:
+        msg: "CyberEye ServerSec Agent NOT installed on this host."
+      when: not dsaAgent.stat.exists

@@ -1,0 +1,146 @@
+# Copyright 2018, Trend Micro
+#
+# License as per [repo](master/LICENSE)
+#
+# *********************************************************************
+# * Install the Deep Security Agent (For Windows only)
+# *********************************************************************
+---
+- name: Install CyberEye Sever Agent - Windows
+  hosts: servers
+
+  vars:
+    ansible_python_interpreter: "/usr/bin/python3"
+# As you add agents to Deep Security, they are automatically made available for download through
+#   the same hostname:port as the Deep Security Manager admin interface. For Marketplace and software deployments, pass
+#   this data through the 'dsm_agent_download_hostname' & 'dsm_agent_download_port' attributes.
+    dsm_agent_download_hostname: 192.168.11.111
+    dsm_agent_download_port: 4119
+
+# Deep Security agents activate on a different port than the admin interface. For Marketplace and
+#    software deployments, 'dsm_agent_activation_hostname' is typically the same as 'dsm_agent_download_hostname'
+#    but 'dsm_agent_activation_port' is different than 'dsm_agent_download_port'. For Deep Security
+#    as a Service, it's the reverse to make it easy to configure only one outbound port.
+    dsm_agent_activation_hostname: 192.168.11.111
+    dsm_agent_activation_port: 4120
+
+# Whether to force re-activation even Deep Security Agent has been activated
+    force_reactivation: false
+
+  tasks:
+# *********************************************************************
+# * Detect the platform architecture
+# *********************************************************************
+    - name: Setting facts (Win64)
+      set_fact:
+        agent_relative_path: software/agent/Windows/x86_64
+        agent_local_path: "{{ ansible_env.TMP }}\\ds_agent.msi"
+      when: ansible_os_family == "Windows" and ansible_architecture[:2] == "64"
+
+    - name: Setting facts (Win32)
+      set_fact:
+        agent_relative_path: software/agent/Windows/i386
+        agent_local_path: "{{ ansible_env.TMP }}\\ds_agent.msi"
+      when: ansible_os_family == "Windows" and ansible_architecture[:2] == "32"
+
+    - name: Make sure path is set properly
+      debug:
+        msg:
+          - "agent_local_path: {{ agent_local_path }}"
+          - "agent_relative_path: {{ agent_relative_path }}"
+
+# *********************************************************************
+# * Download Deep Security agent from Deep Security manager
+# *********************************************************************
+    - debug:
+        msg: "Download from: https://{{ dsm_agent_download_hostname }}:{{ dsm_agent_download_port }}/{{ agent_relative_path }}/"
+
+    - name: Download the Deep Security agent (Windows)
+      win_get_url:
+        url: "https://{{ dsm_agent_download_hostname }}:{{ dsm_agent_download_port }}/{{ agent_relative_path }}/"
+        dest: "{{ agent_local_path }}"
+        validate_certs: no
+        timeout: 300
+        force: yes
+
+    - win_stat:
+        path: "{{ agent_local_path }}"
+      register: agent_file
+
+    - name: Check file size
+      debug:
+        msg: "Downloaded DSA installer file size : {{ agent_file.stat.size }} bytes"
+
+    - fail:
+        msg:
+          - "Downloaded file size is not valid. There are two possiblities : 1. The OS platform is not supported. 2. Deep Security Manager don't provide agent software package installer for your OS platform."
+          - "Please verify that agent software package for your platform is available using this reference article https://help.deepsecurity.trendmicro.com/10/0/Get-Started/Install/import-agent-software.html?redirected=true&Highlight=download"
+      when: agent_file.stat.size == 0
+
+# *********************************************************************
+# * Install the agent
+# *********************************************************************
+# DSA MSI installer will prevent downgrade but allow upgrade. No operation is performed if version is equals.
+    - name: Install the Deep Security agent
+      win_shell: Start-Process -Wait -FilePath msiexec -ArgumentList /i, "{{ agent_local_path }}", /qn, /l*v, "dsa_install.log"
+
+    - name: Make sure the agent has gathered the required metadata
+      pause: 
+        seconds: 5
+
+# *********************************************************************
+# * Make sure the service is running
+# *********************************************************************
+    - name: Get service 'ds_agent' status 
+      win_shell: Get-WmiObject win32_service -Filter "Name = 'ds_agent' AND State = 'Running'"
+      register: result
+
+    - name: Check service is on
+      fail:
+        msg: "Failed to start agent service"
+      when: (result.stdout | regex_search('(Running)')) != "Running"
+
+    - debug:
+        msg: "ds_agent package installed successfully"
+
+# *********************************************************************
+# * Check if DSA activated already
+# *********************************************************************
+    - debug:
+        msg: "Check if DSA activated already."
+
+    - set_fact:
+        isActivated: false
+
+    - win_shell: "& 'C:\\Program Files\\Trend Micro\\Deep Security Agent\\dsa_query.cmd' -c GetAgentStatus agentCertHash"
+      register: certHash
+
+    - set_fact:
+        isActivated: true
+      when: (certHash.stdout | regex_search('(D0:68:DE:48:1B:DC:4D:00:89:07:7F:85:15:20:C5:90:11:EB:56:6A)')) != "D0:68:DE:48:1B:DC:4D:00:89:07:7F:85:15:20:C5:90:11:EB:56:6A"
+
+    - debug:
+        msg: "isActivated: {{ isActivated }}"
+
+# *********************************************************************
+# * Construct dsa_control arguments
+# *********************************************************************
+    - debug:
+        msg: "Construct dsa_control arguments."
+
+    - set_fact:
+        dsa_control_argument: "dsm://{{ dsm_agent_activation_hostname }}:{{ dsm_agent_activation_port }}/"
+
+# *********************************************************************
+# * Activate DSA when it's not activated or forecd to reactivate
+# *********************************************************************
+    - debug:
+        msg:
+            - "Activate DSA when it's not activated or forecd to reactivate."
+            - "force_reactivation: {{ force_reactivation }}"
+
+    - win_shell: "{{ item }}"
+      with_items:
+        - "& 'C:\\Program Files\\Trend Micro\\Deep Security Agent\\dsa_control' -r"
+        - "& 'C:\\Program Files\\Trend Micro\\Deep Security Agent\\dsa_control' -a {{ dsa_control_argument }}"
+      when: isActivated != true or force_reactivation != false

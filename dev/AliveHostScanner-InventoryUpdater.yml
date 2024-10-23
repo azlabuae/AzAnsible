@@ -1,0 +1,31 @@
+# Copyright 2018, Trend Micro
+#
+# License as per [repo](master/LICENSE)
+#
+# *********************************************************************
+# * Scan all alive machines via NMAP then update inventory file
+# *********************************************************************
+---
+# Ansible Playbook for Nmap scanning
+- name: Nmap Scan Playbook
+  hosts: all  # Target all hosts defined in the inventory
+  gather_facts: no  # Skip gathering facts for faster execution
+  tasks:
+    - name: Run Nmap scan on specified ports
+      community.general.nmap:
+        address: 192.168.11.0/24  # Scans the specified subnet
+        ports: 
+          - 22   # SSH port
+          - 443  # HTTPS port
+      register: nmap_results  # Store the results of the Nmap scan
+
+    - name: Create group of servers responding on port 443
+      add_host:
+        name: "{{ item }}"
+
+      loop: "{{ nmap_results['hosts'] | selectattr('ports', 'defined') | selectattr('ports', 'search', '443') | map(attribute='host') | list }}"
+      when: nmap_results is defined and nmap_results['hosts'] | selectattr('ports', 'defined') | selectattr('ports', 'search', '443') | list | length > 0
+
+    - name: Display Nmap scan results
+      debug:
+        var: nmap_results

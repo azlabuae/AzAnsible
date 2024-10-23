@@ -1,0 +1,21 @@
+- name: Checking DSA - AIZ
+  hosts: all
+
+  vars:
+    ansible_python_interpreter: "/usr/bin/python3"
+
+  tasks:
+    - name: Check if DSA exists
+      stat:
+        path: 'C:\Program Files\Trend Micro\Deep Security Agent\dsa_query.cmd'
+      register: dsaCmd
+
+    - name: Print existence message
+      debug:
+        msg: "DSA exists"
+      when: dsaCmd.stat.exists
+
+    - name: Print non-existence message
+      debug:
+        msg: "DSA not exists!"
+      when: not dsaCmd.stat.exists

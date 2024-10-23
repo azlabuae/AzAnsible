@@ -1,0 +1,96 @@
+# Copyright 2018, Trend Micro
+#
+# License as per [repo](master/LICENSE)
+#
+# *********************************************************************
+# * Install the Endpoint Security Agent (For Windows only)
+# *********************************************************************
+---
+- name: Install CyberEye Endpoint Agent
+  hosts: endpoints
+
+  vars:
+    ansible_python_interpreter: "/usr/bin/python3"
+    myfile: 'C:\Program Files (x86)\Trend Micro\Security Agent\Ntrtscan.exe'
+    epp_agent_download_path: 'https://adda-ijiruw.manage.cybereye.gov.ae:443/officescan/download/agent_cloud_x64_959a99fb-be99-4cc0-9280-f1b137cbdab5.msi'
+
+# *********************************************************************
+# * Check if CyberEye installed properly
+# *********************************************************************
+  tasks:
+    - name: Checking if CyberEye Endpoint Agent exist
+      ansible.windows.win_stat:
+        path: "{{ myfile }}"
+      register: file_data
+
+    - name: Verify CyberEye Agent exist
+      ansible.builtin.debug:
+        msg: "CyberEye EndpointSec Agent already installed"
+      when: file_data.stat.exists
+
+    - name: CyberEye Agent Not exists
+      when: not file_data.stat.exists
+      block:
+    # *********************************************************************
+    # * Detect the platform architecture
+    # *********************************************************************
+        - name: Setting facts (Win64)
+          set_fact:
+            agent_local_path: "{{ ansible_env.TMP }}\\agent_cloud_x64.msi"
+          when: ansible_os_family == "Windows" and ansible_architecture[:2] == "64"
+
+        - name: Setting facts (Win32)
+          set_fact:
+            agent_local_path: "{{ ansible_env.TMP }}\\agent_cloud_x86.msi"
+          when: ansible_os_family == "Windows" and ansible_architecture[:2] == "32"
+
+    # *************************************************************************
+    # * Generate download link from EndpointSecurity console > Administration >
+    # * Security Agent Download > Select the correct parameters and paste below
+    # *************************************************************************
+        - name: Download the Endpoint Security agent (Windows)
+          win_get_url:
+            url: "{{ epp_agent_download_path }}"
+            dest: "{{ agent_local_path }}"
+            validate_certs: no
+            timeout: 300
+            force: yes
+
+        - win_stat:
+            path: "{{ agent_local_path }}"
+          register: agent_file
+
+        - name: Check file size
+          debug:
+            msg: "Downloaded EndpointSec Agent installer file size : {{ agent_file.stat.size }} bytes"
+
+        - fail:
+            msg: "Downloaded file size is not valid. There are two possiblities : 1. The OS platform is not supported. 2. Endpoint Security Manager don't provide agent software package installer for your OS platform."
+          when: agent_file.stat.size == 0
+
+    # *********************************************************************
+    # * Install the agent
+    # *********************************************************************
+    # EndpointSec Agent MSI installer will prevent downgrade but allow upgrade. No operation is performed if version is equals.
+        - name: Install the Endpoint Security agent
+          win_shell: Start-Process -Wait -FilePath msiexec -ArgumentList /i, "{{ agent_local_path }}", /qn, /l*v, "epp_install.log"
+
+        - name: Make sure the agent has gathered the required metadata
+          pause: 
+            seconds: 5
+
+    # *********************************************************************
+    # * Make sure the service is running
+    # *********************************************************************
+        - name: Get service 'ntrtscan' status 
+          win_shell: Get-WmiObject win32_service -Filter "Name = 'ntrtscan' AND State = 'Running'"
+          register: result
+
+        - name: Check service is on
+          fail:
+            msg: "Failed to start agent service"
+          when: (result.stdout | regex_search('(Running)')) != "Running"
+
+        - debug:
+            msg: "EndpointSec Agent package installed successfully"
+      ignore_errors: true

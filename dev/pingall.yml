@@ -1,0 +1,35 @@
+# Copyright 2018, Trend Micro
+#
+# License as per [repo](master/LICENSE)
+#
+# *********************************************************************
+# * Install the Deep Security Agent (For both Windows and Linux)
+# *********************************************************************
+---
+- hosts: testall
+  connection: local
+  gather_facts: false
+  tasks:
+
+    - wait_for:
+        timeout: 2
+        port: 43
+        host: '{{ (ansible_ssh_host|default(ansible_host))|default(inventory_hostname) }}'
+      register: waitfor
+      ignore_errors: true
+
+    - copy:
+        content: |
+          {% for host in groups['testall'] %}
+          {% if hostvars[host].waitfor.failed %}{{ hostvars[host].inventory_hostname }} {% endif %}
+          {% endfor %}
+        dest: /tmp/bad_file
+      delegate_to: localhost
+
+    - copy:
+        content: |
+          {% for host in groups['testall'] %}
+          {% if not hostvars[host].waitfor.failed %}{{ hostvars[host].inventory_hostname }} {% endif %}
+          {% endfor %}
+        dest: /tmp/good_file
+      delegate_to: localhost

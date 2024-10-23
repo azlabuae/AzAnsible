@@ -1,0 +1,33 @@
+# Copyright 2018, Trend Micro
+#
+# License as per [repo](master/LICENSE)
+#
+# *********************************************************************
+# * Check the CyberEye Security Agent (For Linux only)
+# *********************************************************************
+---
+- name: Check if CyberEye Sever Agent exist - Linux Only
+  hosts: linux
+
+  vars:
+    ansible_python_interpreter: "/usr/bin/python3"
+
+  tasks:
+# *********************************************************************
+# * Check if CyberEye installed properly
+# *********************************************************************
+    - debug:
+        msg: "Checking if CyberEye ServerSec Agent installed properly."
+
+    - stat:
+        path: /opt/ds_agent/dsa_query
+      register: dsaQuery
+
+    - name: CyberEye ServerSec Agent installed
+      debug:
+        msg: "CyberEye ServerSec Agent already installed "
+      when: dsaQuery.stat.exists
+
+    - fail:
+        msg: "CyberEye ServerSec Agent NOT installed on this host!"
+      when: dsaQuery.stat.exists != true

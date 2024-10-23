@@ -1,0 +1,13 @@
+---
+- name: Checking chrome - AIZ
+  hosts: all
+
+  tasks:
+    - name: Gather the package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Check whether a package is installed
+      ansible.builtin.debug:
+        msg: "{{ ansible_facts.packages['google-chrome-stable'][0].version }}"
+      when: "'google-chrome-stable' in ansible_facts.packages"

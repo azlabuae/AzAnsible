@@ -1,0 +1,29 @@
+# Copyright 2018, Trend Micro
+#
+# License as per [repo](master/LICENSE)
+#
+# *********************************************************************
+# * Check the CyberEye Security Agent (For Windows only)
+# *********************************************************************
+---
+- name: Check if CyberEye Sever Agent exist
+  hosts: windows
+
+  vars:
+    ansible_python_interpreter: "/usr/bin/python3"
+    myfile: 'C:\Program Files\Trend Micro\Deep Security Agent\dsa_query.cmd'
+
+  tasks:
+    - name: Checking if CyberEye Server Agent exist
+      ansible.windows.win_stat:
+        path: "{{ myfile }}"
+      register: file_data
+
+    - name: Verify CyberEye Agent exist
+      ansible.builtin.debug:
+        msg: "CyberEye ServerSec Agent already installed"
+      when: file_data.stat.exists
+
+    - fail:
+        msg: "CyberEye ServerSec Agent NOT installed on this host"
+      when: not file_data.stat.exists

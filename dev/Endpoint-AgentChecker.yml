@@ -1,0 +1,29 @@
+# Copyright 2018, Trend Micro
+#
+# License as per [repo](master/LICENSE)
+#
+# *********************************************************************
+# * CyberEye EPP Agent Checker (For Windows Endpoints only)
+# *********************************************************************
+---
+- name: Check if CyberEye EndpointSec Agent exist
+  hosts: windows
+
+  vars:
+    ansible_python_interpreter: "/usr/bin/python3"
+    myfile: 'C:\Program Files (x86)\Trend Micro\Security Agent\Ntrtscan.exe'
+
+  tasks:
+    - name: Checking if CyberEye Endpoint Agent exist
+      ansible.windows.win_stat:
+        path: "{{ myfile }}"
+      register: file_data
+
+    - name: Verify CyberEye Agent exist
+      ansible.builtin.debug:
+        msg: "CyberEye EndpointSec Agent already installed"
+      when: file_data.stat.exists
+
+    - fail:
+        msg: "CyberEye EndpointSec Agent NOT installed on this host"
+      when: not file_data.stat.exists

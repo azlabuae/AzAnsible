@@ -1,0 +1,23 @@
+---
+- name: check if epp file exist
+  hosts: endpoints
+
+  vars:
+    ansible_python_interpreter: "/usr/bin/python3"
+    myfile: 'C:\Program Files (x86)\Trend Micro\Security Agent\Ntrtscan.exe'
+
+  tasks:
+    - name: check if CyberEye EPP file exist
+      ansible.windows.win_stat:
+        path: "{{ myfile }}"
+      register: file_data
+
+    - name: CyberEye EPP file exist
+      ansible.builtin.debug:
+        msg: "The file CyberEye EPP Agent exist"
+      when: file_data.stat.exists
+
+    - name: CyberEye EPP file not exist
+      ansible.builtin.debug:
+        msg: "The file CyberEye EPP Agent doesn't exist"
+      when: not file_data.stat.exists
