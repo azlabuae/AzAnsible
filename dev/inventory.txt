@@ -9,7 +9,7 @@
 192.168.11.114 ansible_port=5985 ansible_connection=winrm
 
 [linux]
-192.168.11.116 ansible_connection=ssh ansible_ssh_user=root ansible_ssh_pass=trendmicro
+192.168.11.116 ansible_connection=ssh
 
 [windows:vars]
 ansible_user=Administrator
@@ -22,3 +22,7 @@ ansible_password=!N0virus
 [endpoints:vars]
 ansible_user=Administrator
 ansible_password=!N0virus
+
+[linux:vars]
+ansible_ssh_user=root
+ansible_ssh_pass=trendmicro
